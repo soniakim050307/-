@@ -4,8 +4,7 @@ import os, pty, sys, time, select, random
 kind = sys.argv[1] if len(sys.argv) > 1 else "seat"
 m, s = pty.openpty()
 print(os.ttyname(s), flush=True)
-t0 = time.time(); buf = b""; last = 0
-os.write(m, b"# actor ready\n")
+t0 = time.time(); buf = b""; last = 0; last_status = 0
 while True:
     r, _, _ = select.select([m], [], [], 0.05)
     if r:
@@ -16,6 +15,8 @@ while True:
             print("<-", p, flush=True)
             if p[0] == "V":
                 os.write(m, ((("A,%s,%s" if kind == "seat" else "ack,%s,%s") % (p[1], p[2])) + "\n").encode())
+    if kind.startswith("actor") and time.time() - last_status >= 1:
+        last_status = time.time(); os.write(m, b"# scan\n")
     if time.time() - last >= 0.1:
         last = time.time(); ms = int((last - t0) * 1000)
         if kind == "seat":
