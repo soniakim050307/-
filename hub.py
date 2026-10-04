@@ -46,6 +46,8 @@ DEFAULT_CFG = {
     "pattern_weak": "weak", "pattern_strong": "strong",
     # 관객 종합 점수 가중치(채널이 없으면 자동으로 빠지고 나머지로 다시 나눔)
     "w_hr": 1.0, "w_gsr": 1.0, "w_seat": 1.0,
+    # 배우 각성 가중치: 심박 상승 + HRV(RMSSD) 저하
+    "w_act_hr": 1.0, "w_act_rr": 1.0, "rr_win_s": 20.0,
     "gsr_sign": 1,
     # 큐(채널 3)
     "cue_gap_s": 30.0, "cue_max": 5,
@@ -66,6 +68,9 @@ CFG_NOTES = {  # 화면 설정창에 쓰는 정보: 라벨, 최소, 최대, 간�
     "w_hr": ("관객 가중치: 심박", 0, 3, 0.5),
     "w_gsr": ("관객 가중치: GSR", 0, 3, 0.5),
     "w_seat": ("관객 가중치: 좌석", 0, 3, 0.5),
+    "w_act_hr": ("배우 가중치: 심박", 0, 3, 0.5),
+    "w_act_rr": ("배우 가중치: HRV 저하", 0, 3, 0.5),
+    "rr_win_s": ("배우 HRV 창(초)", 10, 60, 5),
     "cue_gap_s": ("큐 최소 간격(초)", 0, 120, 5),
     "cue_max": ("큐 최대 횟수", 1, 10, 1),
 }
@@ -520,7 +525,7 @@ class DemoLink(Link):
 
 # ---------------------------------------------------------------- 허브 본체
 class Hub:
-    FEATS = ("act_hr", "aud_hr", "aud_gsr", "aud_seat")
+    FEATS = ("act_hr", "act_rr", "aud_hr", "aud_gsr", "aud_seat")
 
     def __init__(self, clock, cfg, log, bus):
         self.clock, self.log, self.bus = clock, log, bus
@@ -531,9 +536,9 @@ class Hub:
         self.phase = "idle"
         self.baseline_t0 = None
         self.perf_t0 = None
-        self.buf = {"act_hr": deque(maxlen=400), "aud_hr": deque(maxlen=400),
+        self.buf = {"act_hr": deque(maxlen=400), "act_rr": deque(maxlen=400), "aud_hr": deque(maxlen=400),
                     "aud_gsr": deque(maxlen=400), "aud_seat": deque(maxlen=400)}
-        self.last_raw = {"act_hr": None, "aud_hr": None, "aud_gsr": None, "aud_front": None, "aud_back": None}
+        self.last_raw = {"act_hr": None, "act_rmssd": None, "aud_hr": None, "aud_gsr": None, "aud_front": None, "aud_back": None}
         self.last_rx = {"seat": None, "actor": None}
         self.pools = {k: deque(maxlen=2400) for k in self.FEATS}
         self.stats = {}
@@ -542,6 +547,7 @@ class Hub:
         self.ema_t = {"aud": None, "act": None}
         self.levels = {"aud": None, "act": None}
         self.comp = {"aud_hr": None, "aud_gsr": None, "aud_seat": None}
+        self.act_comp = {"act_hr": None, "act_rr": None}
         self.last_tick = None
         self.new_pts = []
         self.hist = deque(maxlen=14400)
@@ -620,6 +626,11 @@ class Hub:
                 self.log.row("raw_%s.csv" % party, ["hub_t", "board_ms", "hr", "hr_ok"],
                              ["%.3f" % now, ms, hr, ok])
             elif k == "R" and len(p) >= 3:
+                if party == "actor":
+                    rr = int(float(p[2]))
+                    if 300 <= rr <= 2000:
+                        with self.lock:
+                            self.buf["act_rr"].append((now, rr))
                 self.log.row("rr_%s.csv" % party, ["hub_t", "board_ms", "rr_ms"],
                              ["%.3f" % now, int(float(p[1])), int(float(p[2]))])
             elif k == "M":
@@ -651,6 +662,7 @@ class Hub:
         if act_fresh:
             v = [x[1] for x in self._recent("act_hr", now, 5.0)]
             f["act_hr"] = median(v) if v else None
+            f["act_rr"] = self._act_hrv(now)
         if seat_fresh:
             v = [x[1] for x in self._recent("aud_hr", now, 5.0)]
             f["aud_hr"] = median(v) if v else None
@@ -662,8 +674,28 @@ class Hub:
                 f["aud_seat"] = mean(e)
         return f
 
+    def _act_hrv(self, now):
+        """최근 rr_win_s 초의 RMSSD를 부호 반대로 돌려준다(HRV가 떨어질수록 값이 커져 각성으로 읽힘).
+        중앙값에서 25% 넘게 벗어난 RR은 잡음으로 보고 뺀다. 폴라 알림 누락(6~7%)은 이웃 차이만 건너뛴다."""
+        rows = self._recent("act_rr", now, self.cfg["rr_win_s"])
+        if len(rows) < 8:
+            self.last_raw["act_rmssd"] = None
+            return None
+        med = median([r[1] for r in rows])
+        ok = [r for r in rows if abs(r[1] - med) <= 0.25 * med]
+        d2 = []
+        for a, b in zip(ok, ok[1:]):
+            if b[0] - a[0] <= 3.0:  # 알림 누락으로 간격이 벌어지면 그 차이는 안 씀
+                d2.append((b[1] - a[1]) ** 2)
+        if len(d2) < 6:
+            self.last_raw["act_rmssd"] = None
+            return None
+        rmssd = math.sqrt(sum(d2) / len(d2))
+        self.last_raw["act_rmssd"] = round(rmssd, 1)
+        return -rmssd
+
     def _compute_stats(self, provisional):
-        floors = {"act_hr": lambda mu: 3.0, "aud_hr": lambda mu: 3.0,
+        floors = {"act_hr": lambda mu: 3.0, "act_rr": lambda mu: max(0.15 * abs(mu), 3.0), "aud_hr": lambda mu: 3.0,
                   "aud_gsr": lambda mu: max(0.02 * abs(mu), 5.0), "aud_seat": lambda mu: max(0.5 * mu, 2.0)}
         stats = {}
         for k, vals in self.pools.items():
@@ -732,7 +764,14 @@ class Hub:
                     num += wts[k] * s
                     den += wts[k]
             self._smooth("aud", num / den if den > 0 else None, now, dt)
-            self._smooth("act", sc["act_hr"], now, dt)
+            aw = {"act_hr": self.cfg["w_act_hr"], "act_rr": self.cfg["w_act_rr"]}
+            self.act_comp = {k: sc[k] for k in aw}
+            anum = aden = 0.0
+            for k, w in aw.items():
+                if sc[k] is not None and w > 0:
+                    anum += w * sc[k]
+                    aden += w
+            self._smooth("act", anum / aden if aden > 0 else None, now, dt)
             prev = dict(self.levels)
             if self.phase in ("ready", "performance"):
                 for key in ("aud", "act"):
@@ -751,6 +790,7 @@ class Hub:
                   "act": _r(self.ema["act"]), "aud": _r(self.ema["aud"]),
                   "aud_hr": _r(self.comp["aud_hr"]), "aud_gsr": _r(self.comp["aud_gsr"]),
                   "aud_seat": _r(self.comp["aud_seat"]),
+                  "act_s_hr": _r(self.act_comp["act_hr"]), "act_s_rr": _r(self.act_comp["act_rr"]),
                   "act_lvl": self.levels["act"], "aud_lvl": self.levels["aud"]}
             self.new_pts.append(pt)
             self.hist.append(pt)
@@ -758,10 +798,11 @@ class Hub:
                 lr = self.last_raw
                 self.log.row("signals.csv", ["hub_t", "perf_t", "phase", "act_hr", "act_score", "act_level", "aud_hr",
                                              "aud_gsr", "aud_front", "aud_back", "aud_score", "aud_level", "s_hr",
-                                             "s_gsr", "s_seat"],
+                                             "s_gsr", "s_seat", "act_rmssd", "act_s_hr", "act_s_rr"],
                              ["%.2f" % now, "" if pt["pt"] is None else pt["pt"], self.phase, lr["act_hr"], pt["act"],
                               self.levels["act"], lr["aud_hr"], lr["aud_gsr"], lr["aud_front"], lr["aud_back"],
-                              pt["aud"], self.levels["aud"], pt["aud_hr"], pt["aud_gsr"], pt["aud_seat"]])
+                              pt["aud"], self.levels["aud"], pt["aud_hr"], pt["aud_gsr"], pt["aud_seat"], lr["act_rmssd"], pt["act_s_hr"],
+                              pt["act_s_rr"]])
 
     # -------- 규칙
     def _rules(self, now, prev):

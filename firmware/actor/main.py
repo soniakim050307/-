@@ -12,6 +12,7 @@ import aioble
 
 TARGET_ID = "1E0A803C"      # Polar H9. 광고 이름에 이 ID가 들어 있으면 연결
 HR_SVC, HR_CHR = bluetooth.UUID(0x180D), bluetooth.UUID(0x2A37)
+PLOT = False                # True: Thonny 그래프 확인용(HR:88,RR:655 줄만 출력, 허브에는 쓰지 말 것)
 MAX_ON_MS = 1500            # 진동 1회 최대 ON 시간(안전 상한)
 PATTERNS = {                # (켬 ms, 끔 ms) 목록
     "weak": ((250, 0),),
@@ -144,6 +145,10 @@ async def polar_task():
                     data = await chr_.notified(timeout_ms=10000)
                     bpm, rrs = parse_hr(data)
                     t = ms()
+                    if PLOT:  # 이름:값 형식이면 Thonny가 선 두 개로 이어서 그린다
+                        if rrs:
+                            send("HR:%d,RR:%d" % (bpm, sum(rrs) // len(rrs)))
+                        continue
                     send("H,%d,%d,%d" % (t, bpm, 1 if bpm > 0 else 0))
                     for rr in rrs:
                         send("R,%d,%d" % (t, rr))

@@ -19,5 +19,12 @@ while True:
         last = time.time(); ms = int((last - t0) * 1000)
         if kind == "seat":
             os.write(m, ("S,%d,%d,%d,%d,%d,1\n" % (ms, 2000 + random.randint(-50, 50), 1800, 900 + random.randint(-20, 20), 72 + random.randint(-2, 2))).encode())
-        else:
+        elif kind == "actor":
             os.write(m, ("H,%d,%d,1\nR,%d,%d\n" % (ms, 68 + random.randint(-2, 2), ms, 880)).encode())
+        else:  # actor-arousal: 30초 평온(심박 68, RR 변동 큼) 뒤 각성(심박 95, RR 변동 작음)
+            if last - t0 < 30:
+                hr, rr = 68 + random.randint(-2, 2), 880 + random.randint(-50, 50)
+            else:
+                hr, rr = 95 + random.randint(-1, 1), 630 + random.randint(-6, 6)
+            if int(last * 10) % 10 == 0:  # 약 1초에 한 번
+                os.write(m, ("H,%d,%d,1\nR,%d,%d\n" % (ms, hr, ms, rr)).encode())
