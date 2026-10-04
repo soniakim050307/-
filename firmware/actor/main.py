@@ -118,7 +118,10 @@ def parse_hr(data):
 async def find_polar():
     async with aioble.scan(5000, interval_us=30000, window_us=30000, active=True) as sc:
         async for r in sc:
-            name = r.name() or ""
+            try:
+                name = r.name() or ""
+            except Exception:   # 이름이 UTF-8이 아닌 주변 기기는 건너뜀
+                continue
             if TARGET_ID in name:
                 return r.device
     return None
