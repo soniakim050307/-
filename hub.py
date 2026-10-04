@@ -599,6 +599,9 @@ class Hub:
         line = line.strip()
         if not line:
             return
+        if line.startswith("#"):  # 보드 상태 줄(# scan, # polar connected ...)은 터미널에만 보여준다
+            print("[%s 보드] %s" % (party, line))
+            return
         p = [x.strip() for x in line.split(",")]
         k = p[0]
         now = self.clock.now() if t is None else t

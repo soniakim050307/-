@@ -5,6 +5,7 @@ kind = sys.argv[1] if len(sys.argv) > 1 else "seat"
 m, s = pty.openpty()
 print(os.ttyname(s), flush=True)
 t0 = time.time(); buf = b""; last = 0
+os.write(m, b"# actor ready\n")
 while True:
     r, _, _ = select.select([m], [], [], 0.05)
     if r:
