@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스탭 허브</title>
+<style>
+:root{
+  --bg:#0f141b; --surface:#161c24; --surface2:#1d2530; --line:#2a3340; --grid:#232c38;
+  --ink:#e8edf3; --ink2:#a9b4c2; --muted:#7a8696;
+  --aud:#3987e5; --act:#d95926;
+  --ok:#3fb27f; --warn:#e0a526; --crit:#e5484d; --accent:#e8edf3;
+  --ring:#161c24;
+  --font:"Pretendard","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+}
+:root[data-theme="light"]{
+  --bg:#f1f2f0; --surface:#fbfbfa; --surface2:#f0f1ef; --line:#d7dad6; --grid:#e6e8e4;
+  --ink:#1b222b; --ink2:#47515e; --muted:#6c7683;
+  --aud:#2a78d6; --act:#eb6834;
+  --ok:#1f8a5b; --warn:#a87400; --crit:#c4282d; --accent:#1b222b;
+  --ring:#fbfbfa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--font);display:flex;flex-direction:column;min-height:100vh}
+button{font:inherit;color:inherit;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--aud);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
+button.go{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600}
+button.stop{background:var(--crit);border-color:var(--crit);color:#fff;font-weight:700}
+button.ghost{background:transparent}
+header{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:-.01em}
+.clock{font-variant-numeric:tabular-nums;font-size:22px;font-weight:700;min-width:64px}
+.phase{padding:2px 10px;border-radius:99px;border:1px solid var(--line);color:var(--ink2);font-size:13px}
+.phase.performance{border-color:var(--ok);color:var(--ok)}
+.phase.baseline{border-color:var(--warn);color:var(--warn)}
+.grow{flex:1}
+.links{display:flex;gap:12px;color:var(--ink2);font-size:13px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:baseline}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--crit)}.dot.off{background:var(--muted)}.dot.wait{background:var(--warn)}
+.banner{display:none;padding:8px 16px;background:var(--crit);color:#fff;font-weight:700}
+.banner.on{display:block}
+.banner.demo{display:block;background:var(--surface2);color:var(--ink2);font-weight:400;border-bottom:1px solid var(--line)}
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;padding:12px 16px;min-height:0}
+@media (max-width:1000px){main{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.panel h2{font-size:13px;margin:0 0 8px;color:var(--ink2);font-weight:600;display:flex;align-items:center;gap:8px}
+.panel h2 .sp{flex:1}
+.chartbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:6px}
+.legend{display:flex;gap:14px;color:var(--ink2);font-size:13px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;padding:3px 10px;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.chartwrap{position:relative;width:100%;height:440px}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.tip{position:absolute;pointer-events:none;background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:12.5px;display:none;z-index:3;min-width:150px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.tip b{font-variant-numeric:tabular-nums}
+.tblwrap{overflow-x:auto}table.data{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px;display:none}
+table.data th,table.data td{padding:3px 8px;text-align:right;border-bottom:1px solid var(--line)}
+table.data th:first-child,table.data td:first-child{text-align:left}
+.lanes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.lane{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.lane .name{font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.lane .name i{width:10px;height:10px;border-radius:50%}
+.lane .val{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:1px 9px;border-radius:99px;font-size:13px;font-weight:600;border:1px solid var(--line)}
+.chip.low{color:var(--ink2)}.chip.mid{color:var(--warn);border-color:var(--warn)}.chip.high{color:var(--crit);border-color:var(--crit)}
+.bars{display:flex;gap:6px;margin-top:6px}
+.bars span{flex:1;font-size:12px;color:var(--muted)}
+.bars em{display:block;height:5px;border-radius:3px;background:var(--grid);margin-top:2px;position:relative;overflow:hidden}
+.bars em b{position:absolute;left:0;top:0;bottom:0;background:var(--aud);border-radius:3px}
+.stack{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--surface2)}
+.card.cand{border-color:var(--act);border-width:2px}
+.card .t{font-weight:700;margin-bottom:2px}
+.card .s{color:var(--ink2);font-size:13px}
+.meter{height:5px;background:var(--grid);border-radius:3px;margin:8px 0;overflow:hidden}
+.meter b{display:block;height:100%;background:var(--act);width:100%}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.row.tight button{padding:3px 9px;font-size:13px}
+.empty{color:var(--muted);font-size:13px;padding:4px 0}
+kbd{font:12px var(--font);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--ink2)}
+.script{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:var(--surface2)}
+.script .beat{margin:10px 0 2px;padding:5px 8px;border-left:3px solid var(--line);cursor:pointer;border-radius:0 6px 6px 0}
+.script .beat .bt{font-weight:700}
+.script .beat .bm{font-size:12.5px;color:var(--ink2)}
+.script .beat.cur{border-left-color:var(--act);background:var(--grid)}
+.script .beat.past{opacity:.55}
+.script p{margin:3px 0;padding-left:11px;font-size:14px;line-height:1.6}
+.script p.dir{color:var(--ink2);font-style:italic}
+.script p.h{font-weight:700}
+.script p.cur{color:var(--ink)}
+.script p.dim{color:var(--ink2)}
+.sheet{font-size:12.5px;color:var(--ink2);margin:4px 0 0}
+.sheet b{color:var(--ink)}
+.log{max-height:230px;overflow:auto;font-size:13px;font-variant-numeric:tabular-nums}
+.log div{display:flex;gap:8px;padding:2px 0;border-bottom:1px solid var(--grid)}
+.log .tm{color:var(--muted);min-width:46px}
+.log .ic{min-width:16px;text-align:center}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px}
+.big{padding:10px 16px;font-size:15px}
+dialog{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:16px 18px;max-width:560px;width:92vw}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.setrow{display:grid;grid-template-columns:1fr 130px 54px;gap:8px;align-items:center;margin:4px 0;font-size:13px}
+.setrow output{font-variant-numeric:tabular-nums;text-align:right}
+textarea{width:100%;min-height:150px;background:var(--surface2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;font:13px var(--font)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:8px;display:none;z-index:10;font-weight:600}
+.small{font-size:12.5px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.card{animation:pop .18s ease-out}@keyframes pop{from{transform:translateY(-4px);opacity:.4}to{transform:none;opacity:1}}}
+</style>
+</head>
+<body>
+<header>
+  <h1>스탭 허브</h1>
+  <div class="clock" id="clock">0:00</div>
+  <span class="phase" id="phase">대기</span>
+  <span class="small" id="bt"></span>
+  <div class="links" id="links"></div>
+  <div class="grow"></div>
+  <span class="small" id="lat"></span>
+  <button id="btnTheme" class="ghost" aria-label="밝은 화면과 어두운 화면 전환">화면 전환</button>
+  <button id="btnSet" class="ghost">설정</button>
+  <button id="btnHalt" class="stop big">전체 정지 <kbd style="color:#fff;border-color:#fff8">X</kbd></button>
+</header>
+<div class="banner" id="haltBanner">전체 정지 중입니다. 모든 진동이 꺼졌고 새 명령은 보내지 않습니다. <button id="btnResume" style="margin-left:10px">정지 해제</button></div>
+<div class="banner demo" id="demoBanner" style="display:none"></div>
+
+<main>
+  <section class="stack">
+    <div class="panel">
+      <div class="chartbar">
+        <h2 style="margin:0">실시간 각성 점수</h2>
+        <div class="legend"><span><i style="background:var(--act)"></i>배우 (심박)</span><span><i style="background:var(--aud)"></i>관객 (심박·GSR·좌석 종합)</span></div>
+        <div class="grow"></div>
+        <div class="seg" id="winSeg" role="group" aria-label="보이는 시간 범위">
+          <button data-w="60">1분</button><button data-w="180" aria-pressed="true">3분</button><button data-w="600">10분</button><button data-w="0">전체</button>
+        </div>
+        <div class="seg" id="viewSeg" role="group" aria-label="보기 방식">
+          <button data-v="chart" aria-pressed="true">그래프</button><button data-v="table">표</button>
+        </div>
+      </div>
+      <div class="chartwrap" id="chartwrap">
+        <canvas id="cv" role="img" aria-label="배우와 관객의 각성 점수 시계열 그래프"></canvas>
+        <div class="tip" id="tip"></div>
+      </div>
+      <table class="data" id="tbl"><thead><tr><th>시각</th><th>배우</th><th>배우 단계</th><th>관객</th><th>관객 단계</th><th>관객 심박</th><th>관객 GSR</th><th>관객 좌석</th></tr></thead><tbody></tbody></table>
+      <div class="lanes">
+        <div class="lane"><div class="name"><i style="background:var(--act)"></i>배우</div><div><span class="val" id="vAct">–</span> <span class="chip" id="cAct"></span></div><div class="small" id="rawAct"></div></div>
+        <div class="lane"><div class="name"><i style="background:var(--aud)"></i>관객</div><div><span class="val" id="vAud">–</span> <span class="chip" id="cAud"></span></div><div class="small" id="rawAud"></div>
+          <div class="bars" id="comp"></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>기록 <span class="sp"></span><span class="small" id="logn"></span></h2>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <aside class="stack">
+    <div class="panel">
+      <h2>진행</h2>
+      <div class="ctrl" id="phaseBtns"></div>
+      <div class="ctrl" style="margin-top:8px">
+        <button id="btnMark">마커 (박수)</button>
+        <button id="btnCond" aria-pressed="true">피드백 ON</button>
+        <button id="btnRelay" aria-pressed="true">배우→관객 연결 ON</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>승인 요청 (배우 → 관객)</h2>
+      <div id="candBox"><div class="empty">배우 각성이 '높음'에서 유지되면 여기에 후보가 뜹니다. 승인하기 전에는 관객에게 아무것도 가지 않습니다.</div></div>
+      <h2 style="margin-top:12px">차단 대기 (관객 → 배우)</h2>
+      <div id="pulseBox"><div class="empty">관객 단계가 올라가면 배우 진동이 대기 시간 뒤 자동으로 갑니다. 상황에 맞지 않으면 차단하세요.</div></div>
+      <div class="small" style="margin-top:6px"><kbd>A</kbd> 승인 <kbd>R</kbd> 거부 <kbd>B</kbd> 차단 <kbd>X</kbd> 전체 정지</div>
+    </div>
+
+    <div class="panel">
+      <h2>큐 (채널 3) <span class="sp"></span><span class="small" id="cueInfo"></span></h2>
+      <div class="ctrl">
+        <button data-cue="up">올려</button><button data-cue="down">낮춰</button><button data-cue="hold">유지</button>
+      </div>
+      <div class="small" style="margin-top:6px" id="cueNote">램프 장치가 연결되지 않으면 기록만 남습니다.</div>
+    </div>
+
+    <div class="panel">
+      <h2>대본 <span class="sp"></span><button id="btnScript" class="ghost">불러오기</button></h2>
+      <div id="scriptBox"><div class="empty">대본을 불러오면 공연 시간에 맞춰 현재 구간이 따라갑니다. 구간을 누르면 직접 위치를 고를 수 있습니다.</div></div>
+    </div>
+  </aside>
+</main>
+
+<dialog id="dlgScript">
+  <h2 style="margin:0 0 6px;font-size:16px">대본 불러오기</h2>
+  <p class="small" style="margin:0 0 8px">구간 제목 줄에 시간을 적으면 공연 시계와 맞춰집니다. 예: <code>### 비트 1 · 도입 (0:00~1:20) — 메모</code></p>
+  <input type="file" id="fileScript" accept=".md,.txt,text/plain,text/markdown">
+  <textarea id="txtScript" placeholder="여기에 붙여넣기"></textarea>
+  <div class="row"><button id="btnSample">예시 대본 넣기</button><span class="grow"></span><button id="btnScriptCancel">닫기</button><button id="btnScriptOk" class="primary">적용</button></div>
+</dialog>
+
+<dialog id="dlgSet">
+  <h2 style="margin:0 0 6px;font-size:16px">설정</h2>
+  <p class="small" style="margin:0 0 8px">공연 중에도 바꿀 수 있고, 바꾼 내용은 기록에 남습니다.</p>
+  <div id="setBody"></div>
+  <div class="setrow"><label for="gsrSign">GSR 방향 (값이 커질 때)</label>
+    <select id="gsrSign"><option value="1">각성 증가</option><option value="-1">각성 감소</option></select><span></span></div>
+  <div class="row"><span class="grow"></span><button id="btnSetClose" class="primary">닫기</button></div>
+</dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const S = {cfg:null, notes:null, hist:[], events:[], script:null, frame:null, win:180, view:"chart", perf0:null, hover:null, speed:1};
+const ICON = {pulse_sent:"●", pulse_blocked:"✕", pulse_pending:"…", pulse_suppressed:"–", pulse_skipped:"–", cand_created:"◆", cand_approved:"✓", cand_rejected:"✕", cand_expired:"–", cand_cancelled:"–", cand_suppressed:"–", cue:"▲", level:"↕", phase:"■", halt:"■", cmd:"→", ack:"✓", marker:"★", config:"⚙", condition:"⚙", relay:"⚙", script:"≡", start:"■", stop:"■"};
+const LV = {low:"낮음", mid:"중간", high:"높음"};
+const CUE = {up:"올려", down:"낮춰", hold:"유지"};
+const ACT = {baseline_start:"기준선 시작", baseline_end:"기준선 끝", perf_start:"공연 시작", perf_end:"공연 끝"};
+
+function fmt(sec){ if(sec==null) return ""; const s=Math.abs(Math.floor(sec)); return (sec<0?"-":"")+Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function api(path, body){
+  return fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})})
+    .then(r=>r.json()).then(r=>{ if(r && r.ok===false && r.msg) toast(r.msg); return r; })
+    .catch(()=>{ toast("허브에 연결되지 않았습니다"); return {ok:false}; });
+}
+let toastT=null;
+function toast(m){ const t=$("#toast"); t.textContent=m; t.style.display="block"; clearTimeout(toastT); toastT=setTimeout(()=>t.style.display="none",3200); }
+
+function evText(e){
+  const k=e.type;
+  switch(k){
+    case "level": return (e.party==="act"?"배우":"관객")+" "+LV[e.frm]+" → "+LV[e.to];
+    case "pulse_pending": return "관객 "+LV[e.frm]+"→"+LV[e.to]+" 배우 진동 대기("+(e.kind==="weak"?"약":"강")+") "+e.id;
+    case "pulse_sent": return "배우 진동 전송 "+e.id+" ("+(e.kind==="weak"?"약":"강")+", "+e.how+")";
+    case "pulse_blocked": return "배우 진동 차단 "+e.id+" · "+e.tag;
+    case "pulse_suppressed": return "배우 진동 보류 "+e.id+" · "+({halt:"전체 정지",off:"피드백 OFF",relay_off:"연결 OFF"}[e.reason]||e.reason);
+    case "pulse_skipped": return "배우 진동 건너뜀 "+e.id+" · "+(e.reason==="gap"?"간격 짧음":"분당 한도");
+    case "cand_created": return "승인 요청 "+e.id+" (배우 높음 유지)"+(e.beat?" · "+e.beat:"");
+    case "cand_approved": return "승인 "+e.id+" → 관객 진동"+(e.delivered?"":" (장치 미연결)");
+    case "cand_rejected": return "거부 "+e.id+" · "+e.reason;
+    case "cand_expired": return "승인 요청 만료 "+e.id;
+    case "cand_cancelled": return "승인 요청 취소 "+e.id;
+    case "cand_suppressed": return "승인 요청 보류 "+e.id+" · "+({halt:"전체 정지",off:"피드백 OFF"}[e.reason]||e.reason);
+    case "cue": return "큐 "+CUE[e.cue]+" ("+e.n+"번째) · "+e.reason+(e.delivered?"":" · 기록만");
+    case "cmd": return "명령 "+e.id+" → "+(e.target==="seat"?"관객석":"배우")+" "+e.pattern+(e.delivered?"":" · 전달 실패");
+    case "ack": return "확인 "+e.id+" 왕복 "+e.rtt_ms+"ms";
+    case "marker": return "마커 · "+e.label;
+    case "phase": return ACT[e.action]||e.action;
+    case "halt": return e.on?"전체 정지":"전체 정지 해제";
+    case "condition": return "피드백 "+e.feedback;
+    case "relay": return "배우→관객 연결 "+(e.on?"ON":"OFF");
+    case "config": return "설정 변경 "+Object.keys(e.changed).join(", ");
+    case "script": return "대본 "+e.name+" ("+e.beats+"구간)";
+    case "start": return "허브 시작"+(e.demo?" (데모 x"+e.speed+")":"");
+    case "stop": return "허브 종료";
+  }
+  return k;
+}
+const LOGHIDE = new Set(["cmd","pulse_pending"]);
+function addLog(e, top){
+  if(LOGHIDE.has(e.type)) return;
+  const d=document.createElement("div");
+  const tm = e.pt!=null ? fmt(e.pt) : fmt(e.t);
+  d.innerHTML='<span class="tm">'+tm+'</span><span class="ic">'+(ICON[e.type]||"·")+'</span><span></span>';
+  d.lastChild.textContent=evText(e);
+  const L=$("#log"); L.insertBefore(d, L.firstChild);
+  while(L.children.length>300) L.removeChild(L.lastChild);
+  $("#logn").textContent=S.events.length+"건";
+}
+
+/* ---------- 차트 ---------- */
+const cv=$("#cv"), ctx=cv.getContext("2d");
+let dirty=true, W=0, H=0, DPR=1;
+function resize(){ const r=$("#chartwrap").getBoundingClientRect(); DPR=window.devicePixelRatio||1; W=r.width; H=r.height; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); dirty=true; }
+window.addEventListener("resize", resize);
+
+const PAD={l:46,r:14,t:26,b:26};
+function xr(){
+  const now = S.frame ? S.frame.t : (S.hist.length?S.hist[S.hist.length-1].t:60);
+  let t1=now, t0;
+  if(S.win>0) t0=now-S.win; else t0=S.hist.length?Math.min(S.hist[0].t, now-30):now-60;
+  return [t0,t1];
+}
+function lanes(){
+  const h=H-PAD.t-PAD.b, gap=18, lh=(h-gap)/2;
+  return [{y0:PAD.t,y1:PAD.t+lh,key:"act",color:"--act",name:"배우"},{y0:PAD.t+lh+gap,y1:PAD.t+h,key:"aud",color:"--aud",name:"관객"}];
+}
+function draw(){
+  dirty=false;
+  ctx.clearRect(0,0,W,H);
+  if(S.view!=="chart"||!S.cfg) return;
+  const [t0,t1]=xr(), pw=W-PAD.l-PAD.r;
+  const X=t=>PAD.l+(t-t0)/(t1-t0)*pw;
+  const L=lanes();
+  const ink2=css("--ink2"), muted=css("--muted"), grid=css("--grid"), line=css("--line"), ring=css("--ring");
+  ctx.font="12px "+css("--font"); ctx.textBaseline="middle";
+  // 비트 띠
+  if(S.script && S.perf0!=null){
+    const cur=S.frame?S.frame.beat:null;
+    S.script.beats.forEach((b,i)=>{
+      const a=X(S.perf0+b.t0), z=X(S.perf0+b.t1);
+      if(z<PAD.l||a>W-PAD.r) return;
+      const xa=Math.max(a,PAD.l), xz=Math.min(z,W-PAD.r);
+      ctx.fillStyle = i===cur ? "rgba(128,140,160,.16)" : (i%2?"rgba(128,140,160,.06)":"rgba(128,140,160,0)");
+      ctx.fillRect(xa,PAD.t,xz-xa,H-PAD.t-PAD.b);
+      ctx.strokeStyle=line; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.moveTo(a,PAD.t-6); ctx.lineTo(a,H-PAD.b); ctx.stroke(); ctx.setLineDash([]);
+      if(xz-xa>46){ ctx.fillStyle=i===cur?css("--ink"):muted; ctx.textAlign="left"; ctx.save(); ctx.beginPath(); ctx.rect(xa,0,xz-xa,PAD.t); ctx.clip();
+        ctx.fillText(b.title, xa+4, 11); ctx.restore(); }
+    });
+  }
+  // 축, 눈금
+  ctx.textAlign="right";
+  L.forEach(l=>{
+    const Y=v=>l.y1-(l.y1-l.y0)*v;
+    ctx.strokeStyle=grid; ctx.lineWidth=1;
+    [0,.25,.5,.75,1].forEach(v=>{ ctx.beginPath(); ctx.moveTo(PAD.l,Y(v)); ctx.lineTo(W-PAD.r,Y(v)); ctx.stroke(); });
+    ctx.fillStyle=muted; [0,.5,1].forEach(v=>ctx.fillText(v.toFixed(1),PAD.l-6,Y(v)));
+    // 단계 경계
+    ctx.strokeStyle=muted; ctx.setLineDash([5,4]);
+    [S.cfg.t_low,S.cfg.t_high].forEach(v=>{ ctx.beginPath(); ctx.moveTo(PAD.l,Y(v)); ctx.lineTo(W-PAD.r,Y(v)); ctx.stroke(); });
+    ctx.setLineDash([]);
+    ctx.fillStyle=ink2; ctx.textAlign="left"; ctx.fillText(l.name,PAD.l+6,l.y0+8); ctx.textAlign="right";
+    ctx.fillStyle=muted; ctx.textAlign="right";
+    ctx.fillText("높음", W-PAD.r-4, Y((1+S.cfg.t_high)/2)); ctx.fillText("중간", W-PAD.r-4, Y((S.cfg.t_low+S.cfg.t_high)/2)); ctx.fillText("낮음", W-PAD.r-4, Y(S.cfg.t_low/2));
+  });
+  // 시간 눈금
+  ctx.fillStyle=muted; ctx.textAlign="center";
+  const span=t1-t0, step=[5,10,15,30,60,120,300,600,1200].find(s=>span/s<=8)||1800;
+  const tb = S.perf0!=null ? S.perf0 : 0;
+  for(let t=Math.ceil((t0-tb)/step)*step+tb; t<=t1; t+=step){
+    const x=X(t); ctx.fillText(fmt(S.perf0!=null? t-S.perf0 : t), x, H-PAD.b+13);
+    ctx.strokeStyle=grid; ctx.beginPath(); ctx.moveTo(x,H-PAD.b); ctx.lineTo(x,H-PAD.b+4); ctx.stroke();
+  }
+  // 선
+  const pts=S.hist.filter(p=>p.t>=t0-5);
+  L.forEach(l=>{
+    const Y=v=>l.y1-(l.y1-l.y0)*v;
+    ctx.strokeStyle=css(l.color); ctx.lineWidth=2; ctx.lineJoin="round"; ctx.beginPath();
+    let pen=false, last=null;
+    pts.forEach(p=>{
+      const v=p[l.key];
+      if(v==null || (last!=null && p.t-last>3)){ pen=false; }
+      if(v==null){ last=null; return; }
+      const x=X(p.t), y=Y(v);
+      if(!pen){ ctx.moveTo(x,y); pen=true; } else ctx.lineTo(x,y);
+      last=p.t;
+    });
+    ctx.stroke();
+  });
+  // 이벤트 기호
+  const mk=(x,y,shape,color)=>{
+    ctx.fillStyle=color; ctx.strokeStyle=ring; ctx.lineWidth=2; ctx.beginPath();
+    if(shape==="tri"){ ctx.moveTo(x,y-6); ctx.lineTo(x+6,y+5); ctx.lineTo(x-6,y+5); ctx.closePath(); }
+    else if(shape==="dia"){ ctx.moveTo(x,y-6); ctx.lineTo(x+6,y); ctx.lineTo(x,y+6); ctx.lineTo(x-6,y); ctx.closePath(); }
+    else if(shape==="sq"){ ctx.rect(x-5,y-5,10,10); }
+    else { ctx.arc(x,y,5,0,Math.PI*2); }
+    ctx.stroke(); ctx.fill();
+  };
+  const xmark=(x,y,color)=>{ ctx.strokeStyle=ring; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(x-4,y-4); ctx.lineTo(x+4,y+4); ctx.moveTo(x+4,y-4); ctx.lineTo(x-4,y+4); ctx.stroke();
+    ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.stroke(); };
+  const at=(key,t)=>{ let best=null; for(let i=S.hist.length-1;i>=0;i--){ const p=S.hist[i]; if(p[key]!=null){ best=p; if(p.t<=t) break; } } return best?best[key]:0.5; };
+  S.events.forEach(e=>{
+    if(e.t<t0||e.t>t1) return;
+    const x=X(e.t), la=L[0], lb=L[1];
+    const Ya=v=>la.y1-(la.y1-la.y0)*v, Yb=v=>lb.y1-(lb.y1-lb.y0)*v;
+    switch(e.type){
+      case "pulse_sent": mk(x,Yb(at("aud",e.t)),"tri",css("--aud")); break;
+      case "pulse_blocked": xmark(x,Yb(at("aud",e.t)),css("--crit")); break;
+      case "cand_created": mk(x,Ya(at("act",e.t)),"dia",css("--warn")); break;
+      case "cand_approved": mk(x,Ya(at("act",e.t)),"circ",css("--ok")); break;
+      case "cand_rejected": xmark(x,Ya(at("act",e.t)),css("--crit")); break;
+      case "cue": mk(x,PAD.t+4,"sq",css("--ink")); break;
+      case "marker": ctx.strokeStyle=css("--ink2"); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x,PAD.t); ctx.lineTo(x,H-PAD.b); ctx.stroke(); break;
+    }
+  });
+  // 현재 시각 선과 현재 값 표시
+  if(S.hover!=null){
+    const x=X(S.hover.t); ctx.strokeStyle=ink2; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x,PAD.t); ctx.lineTo(x,H-PAD.b); ctx.stroke();
+    L.forEach(l=>{ const v=S.hover.p[l.key]; if(v==null) return; const Y=l.y1-(l.y1-l.y0)*v; mk(x,Y,"circ",css(l.color)); });
+  }
+}
+function loop(){ if(dirty) draw(); requestAnimationFrame(loop); }
+
+cv.addEventListener("mousemove", ev=>{
+  const r=cv.getBoundingClientRect(), x=ev.clientX-r.left, [t0,t1]=xr();
+  const t=t0+(x-PAD.l)/(W-PAD.l-PAD.r)*(t1-t0);
+  let best=null,bd=1e9;
+  for(let i=S.hist.length-1;i>=0;i--){ const p=S.hist[i]; const d=Math.abs(p.t-t); if(d<bd){bd=d;best=p;} else if(p.t<t-5) break; }
+  if(!best||bd>3||x<PAD.l||x>W-PAD.r){ S.hover=null; $("#tip").style.display="none"; dirty=true; return; }
+  S.hover={t:best.t,p:best};
+  const tip=$("#tip"), pt=best.pt;
+  const beat = S.script && S.perf0!=null ? S.script.beats.find(b=>(best.t-S.perf0)>=b.t0&&(best.t-S.perf0)<b.t1) : null;
+  const f=v=>v==null?"–":v.toFixed(2);
+  tip.innerHTML='<div><b>'+fmt(pt!=null?pt:best.t)+'</b>'+(pt==null?' <span class="small">(공연 전)</span>':'')+'</div>'+
+    '<div><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--act);margin-right:5px"></i>배우 <b>'+f(best.act)+'</b> '+(best.act_lvl?LV[best.act_lvl]:"")+'</div>'+
+    '<div><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--aud);margin-right:5px"></i>관객 <b>'+f(best.aud)+'</b> '+(best.aud_lvl?LV[best.aud_lvl]:"")+'</div>'+
+    '<div class="small">심박 '+f(best.aud_hr)+' · GSR '+f(best.aud_gsr)+' · 좌석 '+f(best.aud_seat)+'</div>'+
+    (beat?'<div class="small">'+beat.title+'</div>':'');
+  tip.style.display="block";
+  const tw=tip.offsetWidth; tip.style.left=Math.min(Math.max(x+14,0),W-tw-4)+"px"; tip.style.top="40px";
+  dirty=true;
+});
+cv.addEventListener("mouseleave",()=>{ S.hover=null; $("#tip").style.display="none"; dirty=true; });
+
+/* ---------- 표 ---------- */
+function fillTable(){
+  const rows=S.hist.filter((p,i)=>i%8===0).slice(-40).reverse();
+  const f=v=>v==null?"–":v.toFixed(2);
+  $("#tbl tbody").innerHTML=rows.map(p=>"<tr><td>"+fmt(p.pt!=null?p.pt:p.t)+"</td><td>"+f(p.act)+"</td><td>"+(p.act_lvl?LV[p.act_lvl]:"–")+"</td><td>"+f(p.aud)+"</td><td>"+(p.aud_lvl?LV[p.aud_lvl]:"–")+"</td><td>"+f(p.aud_hr)+"</td><td>"+f(p.aud_gsr)+"</td><td>"+f(p.aud_seat)+"</td></tr>").join("");
+}
+
+/* ---------- 화면 갱신 ---------- */
+const PH={idle:"대기",baseline:"기준선 측정 중",ready:"공연 준비됨",performance:"공연 중",ended:"공연 끝"};
+function renderPhase(f){
+  $("#phase").textContent=PH[f.phase]||f.phase; $("#phase").className="phase "+f.phase;
+  $("#clock").textContent = f.pt!=null ? fmt(f.pt) : (f.phase==="baseline"&&f.base_t!=null ? fmt(f.base_t) : "0:00");
+  $("#bt").textContent = f.phase==="baseline" ? "기준선은 최소 "+Math.round(S.cfg.baseline_s)+"초 측정하세요" : (f.provisional?"기준선 없이 시작: 임시 기준":"");
+  const key=f.phase+"|"+f.stats_ok.length;
+  const pb=$("#phaseBtns");
+  if(pb.dataset.k!==key){
+    pb.dataset.k=key; pb.innerHTML="";
+    const add=(label,act,cls)=>{ const b=document.createElement("button"); b.textContent=label; if(cls)b.className=cls; b.onclick=()=>api("/api/phase",{action:act}); pb.appendChild(b); };
+    if(f.phase==="idle"||f.phase==="ended"||f.phase==="ready"){ add(f.phase==="ready"?"기준선 다시 측정":"기준선 시작","baseline_start"); }
+    if(f.phase==="baseline"){ add("기준선 끝","baseline_end","primary"); }
+    if(f.phase==="ready"||f.phase==="idle"||f.phase==="ended"){ add("공연 시작","perf_start","go"); }
+    if(f.phase==="performance"){ add("공연 끝","perf_end","primary"); }
+  }
+}
+function renderLinks(f){
+  const names={seat:"관객석",actor:"배우",lamp:"램프"};
+  $("#links").innerHTML=Object.keys(names).map(k=>{
+    const l=f.links[k]; let cls="off", txt="미설정";
+    if(l.kind!=="none"){
+      if(l.error){cls="bad";txt="오류";}
+      else if(l.age==null){cls="wait";txt="신호 없음";}
+      else if(l.age>S.cfg.stale_s){cls="bad";txt="끊김 "+Math.round(l.age)+"초";}
+      else {cls="ok";txt="정상";}
+      if(k==="lamp"){cls="ok";txt="연결됨";}
+    }
+    return '<span title="'+(l.error||"")+'"><i class="dot '+cls+'"></i>'+names[k]+" "+txt+"</span>";
+  }).join("");
+  $("#lat").textContent = f.lat.n? "왕복 지연 중앙 "+Math.round(f.lat.median)+"ms · 최대 "+f.lat.max+"ms" : "";
+}
+function renderVals(f){
+  const sc=f.scores, lv=f.levels;
+  $("#vAct").textContent = sc.act==null?"–":sc.act.toFixed(2);
+  $("#vAud").textContent = sc.aud==null?"–":sc.aud.toFixed(2);
+  const chip=(el,l)=>{ el.className="chip "+(l||""); el.textContent=l?(l==="high"?"▲ ":l==="mid"?"■ ":"▽ ")+LV[l]:"단계 없음"; };
+  chip($("#cAct"),lv.act); chip($("#cAud"),lv.aud);
+  $("#rawAct").textContent = f.raw.act_hr!=null ? "심박 "+f.raw.act_hr+" bpm" : "심박 신호 없음";
+  $("#rawAud").textContent = (f.raw.aud_hr!=null?"심박 "+f.raw.aud_hr+" bpm":"심박 없음")+" · GSR "+(f.raw.aud_gsr!=null?f.raw.aud_gsr:"–");
+  const last=S.hist.length?S.hist[S.hist.length-1]:{};
+  const comp=[["심박",last.aud_hr],["GSR",last.aud_gsr],["좌석",last.aud_seat]];
+  $("#comp").innerHTML=comp.map(c=>'<span>'+c[0]+' '+(c[1]==null?"–":c[1].toFixed(2))+'<em><b style="width:'+Math.round((c[1]||0)*100)+'%"></b></em></span>').join("");
+}
+function renderCand(f){
+  const box=$("#candBox");
+  if(!f.cand){ if(box.dataset.id){ box.dataset.id=""; box.innerHTML='<div class="empty">배우 각성이 \'높음\'에서 유지되면 여기에 후보가 뜹니다. 승인하기 전에는 관객에게 아무것도 가지 않습니다.</div>'; } return; }
+  if(box.dataset.id!==f.cand.id){
+    box.dataset.id=f.cand.id;
+    box.innerHTML='<div class="card cand"><div class="t">배우 각성 높음 · 관객에게 진동을 보낼까요?</div><div class="s" id="cs"></div><div class="meter"><b id="cm"></b></div>'+
+      '<div class="row"><button class="go" id="bApprove">승인 <kbd style="color:#fff;border-color:#fff8">A</kbd></button><button id="bReject">거부 <kbd>R</kbd></button></div>'+
+      '<div class="row tight" id="rtags"></div></div>';
+    $("#bApprove").onclick=()=>api("/api/candidate",{id:f.cand.id,action:"approve"});
+    $("#bReject").onclick=()=>api("/api/candidate",{id:f.cand.id,action:"reject",reason:"기타"});
+    ["장면 맥락 안 맞음","배우 의도된 고조","관객 반응 이미 큼","기타"].forEach(t=>{ const b=document.createElement("button"); b.textContent="거부: "+t; b.onclick=()=>api("/api/candidate",{id:f.cand.id,action:"reject",reason:t}); $("#rtags").appendChild(b); });
+  }
+  const bi=f.beat!=null&&S.script?S.script.beats[f.beat]:null;
+  $("#cs").textContent="점수 "+(f.cand.score==null?"–":f.cand.score.toFixed(2))+(bi?" · 지금 구간: "+bi.title+(bi.exp_actor?" (예상 "+bi.exp_actor+")":""):"")+" · "+Math.ceil(f.cand.left)+"초 뒤 만료";
+  $("#cm").style.width=Math.round(100*f.cand.left/f.cand.total)+"%";
+}
+function renderPulses(f){
+  const box=$("#pulseBox"), key=f.pulses.map(p=>p.id).join(",");
+  if(box.dataset.k!==key){
+    box.dataset.k=key;
+    if(!f.pulses.length){ box.innerHTML='<div class="empty">관객 단계가 올라가면 배우 진동이 대기 시간 뒤 자동으로 갑니다. 상황에 맞지 않으면 차단하세요.</div>'; return; }
+    box.innerHTML="";
+    f.pulses.forEach(p=>{
+      const d=document.createElement("div"); d.className="card"; d.dataset.id=p.id;
+      d.innerHTML='<div class="t">관객 '+LV[p.frm]+' → '+LV[p.to]+' · 배우 진동 '+(p.kind==="weak"?"약":"강")+'</div><div class="s"><span class="cnt"></span> 뒤 자동 전송</div><div class="meter"><b style="background:var(--aud)"></b></div><div class="row tight"></div>';
+      const r=d.querySelector(".row");
+      const bb=document.createElement("button"); bb.className="stop"; bb.innerHTML="차단 <kbd style='color:#fff;border-color:#fff8'>B</kbd>"; bb.onclick=()=>api("/api/pulse",{id:p.id,action:"block",tag:"기타"}); r.appendChild(bb);
+      ["연기 중 부적절","관객 웃음/박수","기술 문제"].forEach(t=>{ const b=document.createElement("button"); b.textContent="차단: "+t; b.onclick=()=>api("/api/pulse",{id:p.id,action:"block",tag:t}); r.appendChild(b); });
+      const sn=document.createElement("button"); sn.textContent="지금 보내기"; sn.onclick=()=>api("/api/pulse",{id:p.id,action:"send_now"}); r.appendChild(sn);
+      box.appendChild(d);
+    });
+  }
+  f.pulses.forEach(p=>{ const d=box.querySelector('[data-id="'+p.id+'"]'); if(!d)return; d.querySelector(".cnt").textContent=p.left.toFixed(1)+"초"; d.querySelector(".meter b").style.width=(p.total>0?Math.round(100*p.left/p.total):0)+"%"; });
+}
+function renderCtl(f){
+  document.body.dataset.halt=f.halted?"1":"0";
+  $("#haltBanner").classList.toggle("on",f.halted);
+  $("#btnHalt").style.display=f.halted?"none":"";
+  const c=$("#btnCond"); c.textContent="피드백 "+(f.feedback?"ON":"OFF"); c.setAttribute("aria-pressed",f.feedback);
+  const r=$("#btnRelay"); r.textContent="배우→관객 연결 "+(f.relay?"ON":"OFF"); r.setAttribute("aria-pressed",f.relay);
+  $("#cueInfo").textContent=f.cues.n+" / "+f.cues.max+"회"+(f.cues.wait>0?" · "+Math.ceil(f.cues.wait)+"초 뒤 가능":"");
+  document.querySelectorAll("[data-cue]").forEach(b=>b.disabled=f.phase!=="performance"||f.halted||f.cues.wait>0||f.cues.n>=f.cues.max);
+  const lamp=f.links.lamp.kind!=="none"; $("#cueNote").textContent=lamp?"램프로 전송됩니다.":"램프 장치가 연결되지 않아 기록만 남습니다.";
+}
+function renderScript(f){
+  const box=$("#scriptBox");
+  if(!S.script){ return; }
+  if(box.dataset.k!=="s"+S.script.name+S.script.blocks.length){ box.dataset.k="s"+S.script.name+S.script.blocks.length; buildScript(); }
+  const cur=f.beat;
+  if(box.dataset.cur!==String(cur)+f.manual){
+    box.dataset.cur=String(cur)+f.manual;
+    box.querySelectorAll(".beat").forEach(el=>{ const i=+el.dataset.i; el.classList.toggle("cur",i===cur); el.classList.toggle("past",cur!=null&&i<cur); });
+    box.querySelectorAll("p").forEach(el=>{ const i=+el.dataset.i; el.classList.toggle("dim",cur!=null&&i!==cur); el.classList.toggle("cur",i===cur); });
+    const el=box.querySelector(".beat.cur"); if(el){ const sc=box.querySelector(".script"); sc.scrollTop=el.offsetTop-sc.offsetTop-8; }
+    $("#scMode").textContent=f.manual?"직접 선택 중 · 시계 따라가기":"시계 따라가는 중";
+  }
+}
+function buildScript(){
+  const sc=S.script, box=$("#scriptBox");
+  const hasTimes=sc.beats.length>0;
+  let html='<div class="small" style="margin-bottom:4px">'+esc(sc.name)+' · '+sc.beats.length+'구간 · <a href="#" id="scMode" style="color:var(--ink2)">시계 따라가는 중</a></div><div class="script">';
+  sc.blocks.forEach(b=>{
+    if(b.k==="beat"){
+      const bt=sc.beats[b.beat];
+      html+='<div class="beat" data-i="'+b.beat+'"><div class="bt">'+esc(bt.title)+' <span class="small">'+fmt(bt.t0)+'~'+fmt(bt.t1)+'</span></div>'+(bt.note?'<div class="bm">'+esc(bt.note)+'</div>':'')+
+        (bt.exp_actor||bt.exp_aud||bt.rule?'<div class="sheet">'+(bt.exp_actor?'배우 <b>'+esc(bt.exp_actor)+'</b> ':'')+(bt.exp_aud?'· 관객 <b>'+esc(bt.exp_aud)+'</b> ':'')+(bt.rule?'· '+esc(bt.rule):'')+'</div>':'')+'</div>';
+    } else html+='<p class="'+b.k+'" data-i="'+(b.beat==null?-1:b.beat)+'">'+(b.t!=null?'<span class="small">['+fmt(b.t)+'] </span>':'')+esc(b.text)+'</p>';
+  });
+  html+='</div>'; if(!hasTimes) html+='<div class="small">시간이 적힌 구간이 없어 자동으로 따라가지 못합니다.</div>';
+  box.innerHTML=html;
+  box.querySelectorAll(".beat").forEach(el=>el.onclick=()=>api("/api/script_pos",{beat:+el.dataset.i}));
+  $("#scMode").onclick=e=>{ e.preventDefault(); api("/api/script_pos",{beat:null}); };
+  box.dataset.cur="";
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function onFrame(f){
+  S.frame=f; S.speed=f.speed;
+  if(f.pt!=null) S.perf0=f.t-f.pt; else if(f.phase!=="performance"&&f.phase!=="ended") S.perf0=S.perf0;
+  f.pts.forEach(p=>S.hist.push(p));
+  if(S.hist.length>14400) S.hist.splice(0,S.hist.length-14400);
+  renderPhase(f); renderLinks(f); renderVals(f); renderCand(f); renderPulses(f); renderCtl(f); renderScript(f);
+  if(S.view==="table") fillTable();
+  dirty=true;
+}
+
+/* ---------- 연결 ---------- */
+function connect(){
+  const es=new EventSource("/events");
+  es.addEventListener("snap",e=>{
+    const d=JSON.parse(e.data); S.cfg=d.cfg; S.notes=d.notes; S.hist=d.hist; S.events=d.events; S.script=d.script; S.speed=d.speed;
+    $("#log").innerHTML=""; S.events.slice().forEach(ev=>addLog(ev)); 
+    const ph=[...S.events].reverse().find(e=>e.type==="phase"&&e.action==="perf_start"); if(ph) S.perf0=ph.t;
+    const st=S.events.find(e=>e.type==="start"); if(st&&st.demo){ const b=$("#demoBanner"); b.style.display="block"; b.textContent="데모 모드: 가짜 신호와 가짜 장치입니다. 속도 x"+st.speed; }
+    buildSet(); dirty=true;
+  });
+  es.addEventListener("frame",e=>onFrame(JSON.parse(e.data)));
+  es.addEventListener("event",e=>{
+    const ev=JSON.parse(e.data); S.events.push(ev); addLog(ev);
+    if(ev.type==="phase"&&ev.action==="perf_start"){ S.perf0=ev.t; }
+    dirty=true;
+  });
+  es.addEventListener("script",e=>{ S.script=JSON.parse(e.data); $("#scriptBox").dataset.k=""; });
+  es.onerror=()=>{ $("#links").innerHTML='<span><i class="dot bad"></i>허브와 연결 끊김, 다시 연결 중</span>'; };
+}
+
+/* ---------- 설정창 ---------- */
+function buildSet(){
+  const body=$("#setBody"); body.innerHTML="";
+  Object.keys(S.notes).forEach(k=>{
+    const [label,min,max,step]=S.notes[k];
+    const row=document.createElement("div"); row.className="setrow";
+    row.innerHTML='<label for="s_'+k+'">'+label+'</label><input type="range" id="s_'+k+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+S.cfg[k]+'"><output>'+S.cfg[k]+'</output>';
+    const inp=row.querySelector("input"), out=row.querySelector("output");
+    inp.oninput=()=>{ out.textContent=inp.value; };
+    inp.onchange=()=>{ const cfg={}; cfg[k]=parseFloat(inp.value); S.cfg[k]=cfg[k]; api("/api/config",{cfg}); dirty=true; };
+    body.appendChild(row);
+  });
+  $("#gsrSign").value=String(S.cfg.gsr_sign);
+}
+$("#gsrSign").onchange=e=>{ const v=parseInt(e.target.value); S.cfg.gsr_sign=v; api("/api/config",{cfg:{gsr_sign:v}}); };
+
+/* ---------- 조작 연결 ---------- */
+$("#btnHalt").onclick=()=>api("/api/halt",{on:true});
+$("#btnResume").onclick=()=>api("/api/halt",{on:false});
+$("#btnMark").onclick=()=>api("/api/marker",{label:"박수 마커"});
+$("#btnCond").onclick=()=>api("/api/condition",{on:!(S.frame&&S.frame.feedback)});
+$("#btnRelay").onclick=()=>api("/api/relay",{on:!(S.frame&&S.frame.relay)});
+document.querySelectorAll("[data-cue]").forEach(b=>b.onclick=()=>api("/api/cue",{cue:b.dataset.cue,reason:(S.frame&&S.frame.beat!=null&&S.script?S.script.beats[S.frame.beat].title:"")}));
+$("#winSeg").onclick=e=>{ const b=e.target.closest("button"); if(!b)return; S.win=+b.dataset.w; document.querySelectorAll("#winSeg button").forEach(x=>x.setAttribute("aria-pressed",x===b)); dirty=true; };
+$("#viewSeg").onclick=e=>{ const b=e.target.closest("button"); if(!b)return; S.view=b.dataset.v; document.querySelectorAll("#viewSeg button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  $("#chartwrap").style.display=S.view==="chart"?"block":"none"; $("#tbl").style.display=S.view==="table"?"table":"none"; if(S.view==="table")fillTable(); dirty=true; };
+$("#btnScript").onclick=()=>$("#dlgScript").showModal();
+$("#btnScriptCancel").onclick=()=>$("#dlgScript").close();
+$("#btnSample").onclick=()=>fetch("/sample_script.md").then(r=>r.text()).then(t=>{ $("#txtScript").value=t; S.sampleName="예시 대본"; });
+$("#fileScript").onchange=e=>{ const f=e.target.files[0]; if(!f)return; S.fileName=f.name; const r=new FileReader(); r.onload=()=>$("#txtScript").value=r.result; r.readAsText(f,"utf-8"); };
+$("#btnScriptOk").onclick=()=>{ const t=$("#txtScript").value; if(!t.trim()){toast("대본을 넣어주세요");return;} api("/api/script",{name:S.fileName||S.sampleName||"대본",text:t}).then(r=>{ if(r.ok){ $("#dlgScript").close(); toast("대본 "+r.beats+"구간을 불러왔습니다"); } }); };
+$("#btnSet").onclick=()=>$("#dlgSet").showModal();
+$("#btnSetClose").onclick=()=>$("#dlgSet").close();
+$("#btnTheme").onclick=()=>{ const r=document.documentElement; r.dataset.theme=r.dataset.theme==="light"?"dark":"light"; try{localStorage.setItem("hubTheme",r.dataset.theme);}catch(e){} dirty=true; };
+try{ const t=localStorage.getItem("hubTheme"); if(t) document.documentElement.dataset.theme=t;  }catch(e){}
+
+document.addEventListener("keydown",e=>{
+  if(e.target.closest("input,textarea,select,dialog")||e.ctrlKey||e.metaKey||e.altKey) return;
+  const k=e.key.toLowerCase(), f=S.frame; if(!f) return;
+  if(k==="x"){ api("/api/halt",{on:!f.halted}); }
+  else if(k==="a"&&f.cand){ api("/api/candidate",{id:f.cand.id,action:"approve"}); }
+  else if(k==="r"&&f.cand){ api("/api/candidate",{id:f.cand.id,action:"reject",reason:"기타"}); }
+  else if(k==="b"&&f.pulses.length){ api("/api/pulse",{id:f.pulses[0].id,action:"block",tag:"기타"}); }
+});
+
+resize(); connect(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
